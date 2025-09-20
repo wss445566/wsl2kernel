@@ -9,7 +9,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name clone wsl2 kernel source
-      run: |
+      run:
         git clone https://github.com/microsoft/WSL2-Linux-Kernel.git --depth=1 -b linux-msft-wsl-6.6.y
 
     # 安裝編譯依賴
@@ -20,7 +20,7 @@ jobs:
 
     # 配置 kernel
     - name: Copy Custom Config
-      run: |
+      run:
         cp .config WSL2-Linux-Kernel/Microsoft/config-wsl-custom
 
     # 編譯 kernel
