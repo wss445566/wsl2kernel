@@ -51,15 +51,40 @@ jobs:
           make INSTALL_MOD_PATH="$PWD/modules" modules_install KCONFIG_CONFIG=Microsoft/config-wsl-custom
           sudo ./Microsoft/scripts/gen_modules_vhdx.sh "$PWD/modules" $(make -s kernelrelease) modules.vhdx
 
-      # 上傳編譯產物
-      - name: Upload Kernel Image
-        uses: actions/upload-artifact@v4
+      # 創建 GitHub Release
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: wsl2-kernel
-          path: WSL2-Linux-Kernel/arch/x86/boot/bzImage
+          tag_name: v${{ github.run_id }}-wsl2-kernel
+          release_name: WSL2 Kernel Build ${{ github.run_id }}
+          draft: false
+          prerelease: false
+          body: |
+            WSL2 Kernel build with custom config from part.txt
+            Commit: ${{ github.sha }}
+            Branch: linux-msft-wsl-6.6.y
 
-      - name: Upload Modules VHDX
-        uses: actions/upload-artifact@v4
+      # 上傳 bzImage 作為 Release 資產
+      - name: Upload Kernel Image to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: wsl2-modules
-          path: WSL2-Linux-Kernel/modules.vhdx
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: WSL2-Linux-Kernel/arch/x86/boot/bzImage
+          asset_name: bzImage
+          asset_content_type: application/octet-stream
+
+      # 上傳 modules.vhdx 作為 Release 資產
+      - name: Upload Modules VHDX to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: WSL2-Linux-Kernel/modules.vhdx
+          asset_name: modules.vhdx
+          asset_content_type: application/octet-stream
