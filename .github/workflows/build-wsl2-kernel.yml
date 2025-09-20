@@ -1,0 +1,50 @@
+name: Build WSL2 Kernel
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    # 檢查出源碼
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name clone wsl2 kernel source
+      run: |
+        git clone https://github.com/microsoft/WSL2-Linux-Kernel.git --depth=1 -b linux-msft-wsl-6.6.y
+
+    # 安裝編譯依賴
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential flex bison dwarves libssl-dev libelf-dev bc python3 pahole cpio
+
+    # 配置 kernel
+    - name: Copy Custom Config
+      run: |
+        cp .config WSL2-Linux-Kernel/Microsoft/config-wsl-custom
+
+    # 編譯 kernel
+    - name: Build Kernel
+      run: |
+        cd WSL2-Linux-Kernel/
+        make -j$(nproc) KCONFIG_CONFIG=Microsoft/config-wsl-custom
+
+    # 編譯並打包模組
+    - name: Install Modules
+      run: |
+        make INSTALL_MOD_PATH="$PWD/modules" modules_install KCONFIG_CONFIG=Microsoft/config-wsl-custom
+        sudo ./Microsoft/scripts/gen_modules_vhdx.sh "$PWD/modules" $(make -s kernelrelease) modules.vhdx
+
+    # 上傳編譯產物
+    - name: Upload Kernel Image
+      uses: actions/upload-artifact@v4
+      with:
+        name: wsl2-kernel
+        path: arch/x86/boot/bzImage
+
+    - name: Upload Modules VHDX
+      uses: actions/upload-artifact@v4
+      with:
+        name: wsl2-modules
+        path: modules.vhdx
+
