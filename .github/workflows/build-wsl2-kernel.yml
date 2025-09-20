@@ -1,13 +1,13 @@
 name: Build WSL2 Kernel
 
 on:
-  workflow_dispatch:  # 啟用手動觸發
-  
+  workflow_dispatch:  # 手動觸發
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 檢查出你自己的倉庫（包含 .config）
+      # 檢查出你自己的倉庫（包含 part.txt）
       - name: Checkout Repository (Config)
         uses: actions/checkout@v4
         with:
@@ -29,11 +29,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential flex bison dwarves libssl-dev libelf-dev bc python3 pahole cpio
 
-      # 配置 kernel（複製 .config）
-      - name: Copy Custom Config
+      # 合併 part.txt 與 config-wsl 生成 config-wsl-custom
+      - name: Generate Custom Config
         run: |
-          cp config-repo/.config WSL2-Linux-Kernel/Microsoft/config-wsl-custom
-          ls -l WSL2-Linux-Kernel/Microsoft/config-wsl-custom  # 驗證複製
+          cd WSL2-Linux-Kernel/
+          cp Microsoft/config-wsl Microsoft/config-wsl-custom
+          cat ../config-repo/part.txt >> Microsoft/config-wsl-custom
+          make olddefconfig KCONFIG_CONFIG=Microsoft/config-wsl-custom
+          ls -l Microsoft/config-wsl-custom  # 驗證生成
 
       # 編譯 kernel
       - name: Build Kernel
