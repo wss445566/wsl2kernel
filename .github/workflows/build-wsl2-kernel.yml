@@ -1,5 +1,8 @@
 name: Build WSL2 Kernel
 
+on:
+  workflow_dispatch:  # 啟用手動觸發
+  
 jobs:
   build:
     runs-on: ubuntu-latest
