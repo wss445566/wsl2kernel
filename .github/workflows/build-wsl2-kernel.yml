@@ -4,47 +4,56 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    # 檢查出源碼
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      # 檢查出你自己的倉庫（包含 .config）
+      - name: Checkout Repository (Config)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1  # 淺克隆以加速
+          path: config-repo  # 檢查出到 config-repo 目錄
 
-    - name clone wsl2 kernel source
-      run:
-        git clone https://github.com/microsoft/WSL2-Linux-Kernel.git --depth=1 -b linux-msft-wsl-6.6.y
+      # 檢查出 Microsoft WSL2 Kernel 倉庫的 linux-msft-wsl-6.6.y 分支
+      - name: Checkout WSL2 Kernel Source
+        uses: actions/checkout@v4
+        with:
+          repository: microsoft/WSL2-Linux-Kernel
+          ref: linux-msft-wsl-6.6.y  # 指定 linux-msft-wsl-6.6.y 分支
+          fetch-depth: 1  # 淺克隆以加速
+          path: WSL2-Linux-Kernel  # 檢查出到 WSL2-Linux-Kernel 目錄
 
-    # 安裝編譯依賴
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential flex bison dwarves libssl-dev libelf-dev bc python3 pahole cpio
+      # 安裝編譯依賴
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential flex bison dwarves libssl-dev libelf-dev bc python3 pahole cpio
 
-    # 配置 kernel
-    - name: Copy Custom Config
-      run:
-        cp .config WSL2-Linux-Kernel/Microsoft/config-wsl-custom
+      # 配置 kernel（複製 .config）
+      - name: Copy Custom Config
+        run: |
+          cp config-repo/.config WSL2-Linux-Kernel/Microsoft/config-wsl-custom
+          ls -l WSL2-Linux-Kernel/Microsoft/config-wsl-custom  # 驗證複製
 
-    # 編譯 kernel
-    - name: Build Kernel
-      run: |
-        cd WSL2-Linux-Kernel/
-        make -j$(nproc) KCONFIG_CONFIG=Microsoft/config-wsl-custom
+      # 編譯 kernel
+      - name: Build Kernel
+        run: |
+          cd WSL2-Linux-Kernel/
+          make -j$(nproc) KCONFIG_CONFIG=Microsoft/config-wsl-custom
 
-    # 編譯並打包模組
-    - name: Install Modules
-      run: |
-        make INSTALL_MOD_PATH="$PWD/modules" modules_install KCONFIG_CONFIG=Microsoft/config-wsl-custom
-        sudo ./Microsoft/scripts/gen_modules_vhdx.sh "$PWD/modules" $(make -s kernelrelease) modules.vhdx
+      # 編譯並打包模組
+      - name: Install Modules
+        run: |
+          cd WSL2-Linux-Kernel/
+          make INSTALL_MOD_PATH="$PWD/modules" modules_install KCONFIG_CONFIG=Microsoft/config-wsl-custom
+          sudo ./Microsoft/scripts/gen_modules_vhdx.sh "$PWD/modules" $(make -s kernelrelease) modules.vhdx
 
-    # 上傳編譯產物
-    - name: Upload Kernel Image
-      uses: actions/upload-artifact@v4
-      with:
-        name: wsl2-kernel
-        path: arch/x86/boot/bzImage
+      # 上傳編譯產物
+      - name: Upload Kernel Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: wsl2-kernel
+          path: WSL2-Linux-Kernel/arch/x86/boot/bzImage
 
-    - name: Upload Modules VHDX
-      uses: actions/upload-artifact@v4
-      with:
-        name: wsl2-modules
-        path: modules.vhdx
-
+      - name: Upload Modules VHDX
+        uses: actions/upload-artifact@v4
+        with:
+          name: wsl2-modules
+          path: WSL2-Linux-Kernel/modules.vhdx
