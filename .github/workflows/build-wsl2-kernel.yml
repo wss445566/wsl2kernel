@@ -1,90 +1,70 @@
 name: Build WSL2 Kernel
 
 on:
-  workflow_dispatch:  # 手動觸發
+  workflow_dispatch:  
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  
     steps:
-      # 檢查出你自己的倉庫（包含 part.txt）
       - name: Checkout Repository (Config)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1  # 淺克隆以加速
-          path: config-repo  # 檢查出到 config-repo 目錄
+          fetch-depth: 1  
+          path: config-repo  
 
-      # 檢查出 Microsoft WSL2 Kernel 倉庫的 linux-msft-wsl-6.6.y 分支
       - name: Checkout WSL2 Kernel Source
         uses: actions/checkout@v4
         with:
           repository: microsoft/WSL2-Linux-Kernel
-          ref: linux-msft-wsl-6.6.y  # 指定 linux-msft-wsl-6.6.y 分支
-          fetch-depth: 1  # 淺克隆以加速
-          path: WSL2-Linux-Kernel  # 檢查出到 WSL2-Linux-Kernel 目錄
+          ref: linux-msft-wsl-6.6.y  
+          fetch-depth: 1  
+          path: WSL2-Linux-Kernel  
 
-      # 安裝編譯依賴
       - name: Install Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential flex bison dwarves libssl-dev libelf-dev bc python3 pahole cpio qemu-utils
 
-      # 合併 part.txt 與 config-wsl 生成 config-wsl-custom
       - name: Generate Custom Config
         run: |
           cd WSL2-Linux-Kernel/
           cp Microsoft/config-wsl Microsoft/config-wsl-custom
           cat ../config-repo/part.txt >> Microsoft/config-wsl-custom
           make olddefconfig KCONFIG_CONFIG=Microsoft/config-wsl-custom
-          ls -l Microsoft/config-wsl-custom  # 驗證生成
+          ls -l Microsoft/config-wsl-custom  
 
-      # 編譯 kernel
       - name: Build Kernel
         run: |
           cd WSL2-Linux-Kernel/
           make -j$(nproc) KCONFIG_CONFIG=Microsoft/config-wsl-custom
 
-      # 編譯並打包模組
       - name: Install Modules
         run: |
           cd WSL2-Linux-Kernel/
           make INSTALL_MOD_PATH="$PWD/modules" modules_install KCONFIG_CONFIG=Microsoft/config-wsl-custom
           sudo ./Microsoft/scripts/gen_modules_vhdx.sh "$PWD/modules" $(make -s kernelrelease) modules.vhdx
 
-      # 創建 GitHub Release
+      - name: Verify Build Artifacts
+        run: |
+          ls -l WSL2-Linux-Kernel/arch/x86/boot/bzImage
+          ls -l WSL2-Linux-Kernel/modules.vhdx
+
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ github.run_id }}-wsl2-kernel
-          release_name: WSL2 Kernel Build ${{ github.run_id }}
-          draft: false
-          prerelease: false
+          name: WSL2 Kernel Build ${{ github.run_id }}
           body: |
             WSL2 Kernel build with custom config from part.txt
             Commit: ${{ github.sha }}
-            Branch: linux-msft-wsl-6.6.y
-
-      # 上傳 bzImage 作為 Release 資產
-      - name: Upload Kernel Image to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: WSL2-Linux-Kernel/arch/x86/boot/bzImage
-          asset_name: bzImage
-          asset_content_type: application/octet-stream
-
-      # 上傳 modules.vhdx 作為 Release 資產
-      - name: Upload Modules VHDX to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: WSL2-Linux-Kernel/modules.vhdx
-          asset_name: modules.vhdx
-          asset_content_type: application/octet-stream
+            Repository Branch: ${{ github.ref_name }}
+            WSL2 Kernel Source Branch: linux-msft-wsl-6.6.y
+          draft: false
+          prerelease: false
+          files: |
+            WSL2-Linux-Kernel/arch/x86/boot/bzImage
+            WSL2-Linux-Kernel/modules.vhdx
