@@ -26,7 +26,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential flex bison dwarves libssl-dev libelf-dev bc python3 pahole cpio qemu-utils
+          sudo apt-get install -y build-essential flex bison dwarves libssl-dev libelf-dev bc python3 pahole cpio qemu-utils 7zip
 
       - name: Generate Custom Config
         run: |
@@ -46,12 +46,14 @@ jobs:
           cd WSL2-Linux-Kernel/
           make INSTALL_MOD_PATH="$PWD/modules" modules_install KCONFIG_CONFIG=Microsoft/config-wsl-custom
           sudo ./Microsoft/scripts/gen_modules_vhdx.sh "$PWD/modules" $(make -s kernelrelease) modules.vhdx
-
-      - name: Verify Build Artifacts
+          
+      - name: Compress Artifacts
         run: |
-          ls -l WSL2-Linux-Kernel/arch/x86/boot/bzImage
-          ls -l WSL2-Linux-Kernel/modules.vhdx
-
+          cd WSL2-Linux-Kernel/
+          7z a -mx=9 modules.vhdx.7z modules.vhdx  
+          7z a -mx=9 arch/x86/boot/bzImage.7z arch/x86/boot/bzImage
+          ls -lh modules.vhdx.7z arch/x86/boot/bzImage.7z  
+          
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
@@ -63,8 +65,7 @@ jobs:
             Commit: ${{ github.sha }}
             Repository Branch: ${{ github.ref_name }}
             WSL2 Kernel Source Branch: linux-msft-wsl-6.6.y
-          draft: false
-          prerelease: false
+            Note: Assets are compressed as .7z files. Use 7-Zip (or `7z x` on Linux) to decompress before use.
           files: |
-            WSL2-Linux-Kernel/arch/x86/boot/bzImage
-            WSL2-Linux-Kernel/modules.vhdx
+            WSL2-Linux-Kernel/modules.vhdx.7z
+            WSL2-Linux-Kernel/arch/x86/boot/bzImage.7z
